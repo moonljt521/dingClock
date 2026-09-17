@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>DingClock.ipa</key>
+	<array>
+		<dict>
+			<key>architectures</key>
+			<array>
+				<string>arm64</string>
+			</array>
+			<key>buildNumber</key>
+			<string>1</string>
+			<key>certificate</key>
+			<dict>
+				<key>SHA1</key>
+				<string>E5D625323B303995028CBCE87881DD5181706454</string>
+				<key>dateExpires</key>
+				<string>4/14/27</string>
+				<key>type</key>
+				<string>Apple Development</string>
+			</dict>
+			<key>embeddedBinaries</key>
+			<array>
+				<dict>
+					<key>architectures</key>
+					<array>
+						<string>arm64</string>
+					</array>
+					<key>buildNumber</key>
+					<string>1</string>
+					<key>certificate</key>
+					<dict>
+						<key>SHA1</key>
+						<string>E5D625323B303995028CBCE87881DD5181706454</string>
+						<key>dateExpires</key>
+						<string>4/14/27</string>
+						<key>type</key>
+						<string>Apple Development</string>
+					</dict>
+					<key>entitlements</key>
+					<dict>
+						<key>application-identifier</key>
+						<string>75L84BV98K.com.moonding.dingclock.widget</string>
+						<key>com.apple.developer.team-identifier</key>
+						<string>75L84BV98K</string>
+						<key>get-task-allow</key>
+						<true/>
+					</dict>
+					<key>name</key>
+					<string>DingClockWidget.appex</string>
+					<key>profile</key>
+					<dict>
+						<key>UUID</key>
+						<string>8ba0b9d2-cd8e-4755-ba10-b2cdb580c3f4</string>
+						<key>dateExpires</key>
+						<string>9/17/27</string>
+						<key>name</key>
+						<string>iOS Team Provisioning Profile: *</string>
+					</dict>
+					<key>team</key>
+					<dict>
+						<key>id</key>
+						<string>75L84BV98K</string>
+						<key>name</key>
+						<string>JoinU Tech Co., Ltd.</string>
+					</dict>
+					<key>versionNumber</key>
+					<string>1.0</string>
+				</dict>
+			</array>
+			<key>entitlements</key>
+			<dict>
+				<key>application-identifier</key>
+				<string>75L84BV98K.com.moonding.dingclock</string>
+				<key>com.apple.developer.team-identifier</key>
+				<string>75L84BV98K</string>
+				<key>get-task-allow</key>
+				<true/>
+			</dict>
+			<key>name</key>
+			<string>DingClock.app</string>
+			<key>profile</key>
+			<dict>
+				<key>UUID</key>
+				<string>8ba0b9d2-cd8e-4755-ba10-b2cdb580c3f4</string>
+				<key>dateExpires</key>
+				<string>9/17/27</string>
+				<key>name</key>
+				<string>iOS Team Provisioning Profile: *</string>
+			</dict>
+			<key>team</key>
+			<dict>
+				<key>id</key>
+				<string>75L84BV98K</string>
+				<key>name</key>
+				<string>JoinU Tech Co., Ltd.</string>
+			</dict>
+			<key>versionNumber</key>
+			<string>1.0</string>
+		</dict>
+	</array>
+</dict>
+</plist>
