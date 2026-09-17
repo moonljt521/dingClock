@@ -1,0 +1,68 @@
+name: DingClock
+
+options:
+  bundleIdPrefix: com.moonding
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "26.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    SWIFT_EMIT_LOC_STRINGS: YES
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    DEVELOPMENT_TEAM: 75L84BV98K
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  DingClock:
+    type: application
+    platform: iOS
+    sources:
+      - path: DingClock
+        excludes:
+          - "Info.plist"
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.moonding.dingclock
+        INFOPLIST_FILE: DingClock/Info.plist
+        PRODUCT_NAME: DingClock
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "1.0"
+        SUPPORTS_MACCATALYST: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: DingClockWidget
+        embed: true
+
+  DingClockWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: DingClockWidget
+        excludes:
+          - "Info.plist"
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.moonding.dingclock.widget
+        INFOPLIST_FILE: DingClockWidget/Info.plist
+        PRODUCT_NAME: DingClockWidget
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "1.0"
+        APPLICATION_EXTENSION_API_ONLY: YES
+
+  DingClockTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: DingClockTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.moonding.dingclock.tests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: DingClock
