@@ -73,14 +73,19 @@ PY
 
 echo
 echo "==> 描述文件允许的设备数（对方手机必须在名单里）"
-PROF=$(mktemp /tmp/prof.XXXX.mobileprovision)
+PROF=$(mktemp /tmp/prof.XXXXXX.mobileprovision)
 unzip -p "$IPA" "Payload/DingClock.app/embedded.mobileprovision" > "$PROF"
-security cms -D -i "$PROF" > "${PROF}.plist"
-/usr/libexec/PlistBuddy -c "Print :Name" "${PROF}.plist" | sed 's/^/    描述文件: /'
-/usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" "${PROF}.plist" 2>/dev/null \
-  | grep -cE '^\s+[0-9a-f]{40}' | sed 's/^/    已登记设备: /'
-/usr/libexec/PlistBuddy -c "Print :ExpirationDate" "${PROF}.plist" | sed 's/^/    有效期至: /'
-rm -f "$PROF" "${PROF}.plist"
+security cms -D -i "$PROF" > /tmp/make-ipa-profile.plist
+python3 - /tmp/make-ipa-profile.plist <<'PY'
+import plistlib, sys, datetime
+d = plistlib.load(open(sys.argv[1], "rb"), fmt=plistlib.FMT_XML)
+print(f"    描述文件: {d.get('Name')}")
+print(f"    已登记设备: {len(d.get('ProvisionedDevices', []))}")
+exp = d.get("ExpirationDate")
+if exp:
+    print(f"    有效期至: {exp:%Y-%m-%d}")
+PY
+rm -f "$PROF" /tmp/make-ipa-profile.plist
 
 echo
 echo "✅ 完成：$IPA"
