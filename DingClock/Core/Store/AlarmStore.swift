@@ -195,6 +195,36 @@ final class AlarmStore: ObservableObject {
         }
     }
 
+    /// 闹钟被用户关掉后的后台回调（AlarmConfiguration.stopIntent）。
+    ///
+    /// 此刻必然有一个闹钟槽位刚空出来 —— 这是滑动窗口前滚**最可靠**的时机，
+    /// 比机会式的 BGAppRefreshTask 靠谱得多。
+    ///
+    /// 轻量启动：读盘 + 内置节假日 + 对账，不碰 UI、不做网络重活，
+    /// 因为系统给后台回调的执行时间很短。
+    @MainActor
+    static func rollWindowAfterAlarmStopped() async {
+        let store = AlarmStore()
+        await store.bootstrapForRoll()
+    }
+
+    /// 给后台回调用的轻量启动路径
+    func bootstrapForRoll() async {
+        didBootstrap = true
+        try? fileManager.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
+        loadPersistedState()
+
+        // 没有闹钟就不用折腾了
+        guard !alarms.isEmpty else { return }
+
+        // 节假日用内置数据即可 —— 后台回调时间宝贵，远程更新留给前台
+        holidays = await holidayStore.loadBundled()
+
+        authState = await scheduler.authorizationState()
+        guard authState == .authorized else { return }
+        await refreshSchedule()
+    }
+
     // MARK: - 闹钟增删改
 
     func upsert(_ alarm: AlarmModel) {

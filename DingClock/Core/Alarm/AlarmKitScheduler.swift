@@ -165,7 +165,9 @@ final class AlarmKitScheduler: AlarmScheduling, @unchecked Sendable {
             countdownDuration: countdownDuration,
             schedule: .fixed(plan.fireDate),
             attributes: attributes,
-            stopIntent: nil,
+            // 关键：闹钟被关掉时系统会拉起 App 执行这个 Intent，
+            // 趁槽位刚空出来把最远端的新闹钟补上 —— 窗口因此能持续前滚
+            stopIntent: AlarmStoppedIntent(),
             secondaryIntent: nil,
             sound: .default
         )
