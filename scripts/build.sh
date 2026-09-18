@@ -15,6 +15,10 @@
 #   DEVICE="iPhone 16 Pro"  模拟器机型
 set -euo pipefail
 
+# Homebrew 在 Apple Silicon 上装在 /opt/homebrew/bin，部分环境（CI、被改过的 PATH）
+# 不带这一条，会导致 xcodegen 找不到。加上是无害的兜底。
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 cd "$(dirname "$0")/.."
 source scripts/lib-toolchain.sh
 

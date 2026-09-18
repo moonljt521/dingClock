@@ -45,6 +45,23 @@ struct AlarmEditView: View {
     @State private var timeDate: Date
     @State private var onceDate: Date
 
+    /// 铃声绑定为非可选（nil 一律视作系统默认）
+    private var ringtoneBinding: Binding<String> {
+        Binding(
+            get: { alarm.ringtoneID ?? RingtoneCatalog.systemDefaultID },
+            set: { alarm.ringtoneID = ($0 == RingtoneCatalog.systemDefaultID) ? nil : $0 }
+        )
+    }
+
+    /// 拆成独立属性：整段塞在 body 里会让 Swift 的类型检查器超时
+    private var ringtonePicker: some View {
+        Picker("铃声", selection: ringtoneBinding) {
+            ForEach(RingtoneCatalog.all) { ringtone in
+                Text(ringtone.label).tag(ringtone.id)
+            }
+        }
+    }
+
     init(alarm: AlarmModel) {
         _alarm = State(initialValue: alarm)
 
@@ -150,6 +167,13 @@ struct AlarmEditView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            Section("铃声") {
+                ringtonePicker
+                Text("响铃时手机震不震由系统「声音与触感 → 触感」决定；想要轻一点可以选「轻柔渐强」。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if mode != .once {

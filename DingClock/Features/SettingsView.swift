@@ -11,43 +11,24 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("响铃能力") {
-                    LabeledContent("后端", value: store.scheduler.backendName)
+                Section("闹钟权限") {
                     LabeledContent("授权状态", value: store.authState.label)
-                    LabeledContent("已排期", value: "\(store.scheduledCount) 次")
 
-                    Button {
-                        Task {
-                            isAuditing = true
-                            await store.refreshSchedule()
-                            audit = await store.auditSystemAlarms()
-                            isAuditing = false
-                        }
-                    } label: {
-                        HStack {
-                            Label("重新对账", systemImage: "checkmark.seal")
-                            if isAuditing { Spacer(); ProgressView() }
-                        }
-                    }
-                    .disabled(isAuditing)
-                }
-
-                auditSection
-
-                Section("说明") {
-                    Text(store.scheduler.backendNote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if !store.scheduler.isSupported {
+                    if store.scheduler.isSupported {
+                        Text("闹钟由系统接管，能突破静音模式与专注模式，锁屏和灵动岛同步显示。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
                         Text(store.authState.guidance)
                             .font(.caption)
                             .foregroundStyle(Palette.makeup)
-                    } else if store.authState != .authorized {
+                    }
+
+                    if store.authState != .authorized {
                         Button {
                             Task { await store.requestAuthorization() }
                         } label: {
-                            Label("申请闹钟权限", systemImage: "bell.badge.fill")
+                            Label("允许闹钟提醒", systemImage: "bell.badge.fill")
                         }
                     }
 
@@ -148,7 +129,32 @@ struct SettingsView: View {
 
                 Section("关于") {
                     LabeledContent("版本", value: "1.0")
-                    LabeledContent("包标识", value: "com.moonding.dingclock")
+                }
+
+                Section("高级") {
+                    DisclosureGroup("开发者选项") {
+                        LabeledContent("后端", value: store.scheduler.backendName)
+                        LabeledContent("已排期", value: "\(store.scheduledCount) 次")
+
+                        Button {
+                            Task {
+                                isAuditing = true
+                                await store.refreshSchedule()
+                                audit = await store.auditSystemAlarms()
+                                isAuditing = false
+                            }
+                        } label: {
+                            HStack {
+                                Label("重新对账", systemImage: "checkmark.seal")
+                                if isAuditing { Spacer(); ProgressView() }
+                            }
+                        }
+                        .disabled(isAuditing)
+
+                        auditRows
+
+                        LabeledContent("包标识", value: "com.moonding.dingclock")
+                    }
                 }
             }
             .navigationTitle("设置")
@@ -157,22 +163,23 @@ struct SettingsView: View {
 
     /// 系统对账：把 AlarmKit 里**实际**排着的日子读回来，逐条核对是否真是工作日。
     /// 我们自己算一百遍也不算数，得以系统为准 —— 这是「周末/假日不会响」的直接证据。
-    private var auditSection: some View {
-        Section("系统对账（实际排期）") {
-            if audit.isEmpty {
-                Text("还没有读回系统排期。点上面的「重新对账」。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    /// 注意：返回的是**行**而非 Section，方便塞进折叠的「开发者选项」里。
+    @ViewBuilder
+    private var auditRows: some View {
+        if audit.isEmpty {
+            Text("还没有读回系统排期。点上面的「重新对账」。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            let mismatches = audit.filter(\.isMismatch)
+            if mismatches.isEmpty {
+                Label("共 \(audit.count) 条，全部落在工作日 ✓", systemImage: "checkmark.seal.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.green)
             } else {
-                let mismatches = audit.filter(\.isMismatch)
-                if mismatches.isEmpty {
-                    Label("共 \(audit.count) 条，全部落在工作日 ✓", systemImage: "checkmark.seal.fill")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.green)
-                } else {
-                    Label("有 \(mismatches.count) 条不该响却排着，这是 bug", systemImage: "exclamationmark.triangle.fill")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.red)
+                Label("有 \(mismatches.count) 条不该响却排着，这是 bug", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.red)
                 }
 
                 ForEach(audit) { entry in
@@ -199,7 +206,6 @@ struct SettingsView: View {
                 Text("这是从 AlarmKit 读回来的系统真实排期，不是我们自己算的。休息日不该出现在这个列表里。")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-            }
         }
     }
 }

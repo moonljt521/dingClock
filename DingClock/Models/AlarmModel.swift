@@ -38,6 +38,8 @@ struct AlarmModel: Identifiable, Codable, Equatable, Sendable {
     /// 是否把国务院法定节假日与调休补班纳入判定
     var respectsStateHolidays: Bool
     var snoozeEnabled: Bool
+    /// 铃声标识。nil / 未知值 = 系统默认（AlarmKit 没有"无声"选项，见 RingtoneCatalog）
+    var ringtoneID: String?
     /// 提前排期的天数窗口。窗口越大越稳，但会占用更多系统闹钟槽位
     var windowDays: Int
     var createdAt: Date
@@ -51,6 +53,7 @@ struct AlarmModel: Identifiable, Codable, Equatable, Sendable {
         repeatMode: RepeatMode = .fiveDay,
         respectsStateHolidays: Bool = true,
         snoozeEnabled: Bool = true,
+        ringtoneID: String? = nil,
         windowDays: Int = 21,
         createdAt: Date = Date()
     ) {
@@ -62,6 +65,7 @@ struct AlarmModel: Identifiable, Codable, Equatable, Sendable {
         self.repeatMode = repeatMode
         self.respectsStateHolidays = respectsStateHolidays
         self.snoozeEnabled = snoozeEnabled
+        self.ringtoneID = ringtoneID
         self.windowDays = windowDays
         self.createdAt = createdAt
     }

@@ -2,6 +2,7 @@ import Foundation
 
 #if canImport(AlarmKit)
 import AlarmKit
+import ActivityKit
 import SwiftUI
 
 // DingClockAlarmMetadata 定义在 Shared/ 下，主 App 与 Widget 共用。
@@ -161,6 +162,12 @@ final class AlarmKitScheduler: AlarmScheduling, @unchecked Sendable {
             tintColor: .orange
         )
 
+        // 铃声：AlarmKit 只给 .default 和 .named(资源名)，没有"无声/仅震动"。
+        // 未知 id 会在 RingtoneCatalog 里退回系统默认，所以这里不会因为脏数据失败。
+        let sound: ActivityKit.AlertConfiguration.AlertSound =
+            RingtoneCatalog.soundName(forID: plan.ringtoneID)
+                .map { ActivityKit.AlertConfiguration.AlertSound.named($0) } ?? .default
+
         return AlarmManager.AlarmConfiguration(
             countdownDuration: countdownDuration,
             schedule: .fixed(plan.fireDate),
@@ -169,7 +176,7 @@ final class AlarmKitScheduler: AlarmScheduling, @unchecked Sendable {
             // 趁槽位刚空出来把最远端的新闹钟补上 —— 窗口因此能持续前滚
             stopIntent: AlarmStoppedIntent(),
             secondaryIntent: nil,
-            sound: .default
+            sound: sound
         )
     }
 }

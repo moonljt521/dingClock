@@ -10,6 +10,8 @@ struct PlannedFire: Identifiable, Equatable, Sendable {
     var dayKind: DayKind
     var alarmID: UUID
     var label: String
+    /// 该次响铃用的铃声资源名；nil = 系统默认
+    var ringtoneID: String?
 
     var dayKey: String { id }
 }
@@ -119,7 +121,8 @@ struct SchedulePlanner: Sendable {
             fireDate: fire,
             dayKind: kind,
             alarmID: alarm.id,
-            label: alarm.label
+            label: alarm.label,
+            ringtoneID: alarm.ringtoneID
         )
     }
 
