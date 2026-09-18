@@ -79,14 +79,22 @@ struct AlarmEditView: View {
     }
 
     private func startPreview() {
+        // 关键：默认音频类别 .soloAmbient 会跟着手机侧面的静音拨片走——
+        // 拨片一拨静音就一点声都没有（这正是"一直在转圈听不到声"的原因）。
+        // .playback 无视静音开关，保证试听一定能听见。
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .default)
+        try? session.setActive(true)
+
         guard let fileName = RingtoneCatalog.soundName(forID: selectedRingtoneID),
               let url = Bundle.main.url(forResource: fileName, withExtension: "caf") else { return }
         previewPlayer = try? AVAudioPlayer(contentsOf: url)
         // 循环播放，直到手动停或换铃声 —— 闹钟声本来就是要循环的
         previewPlayer?.numberOfLoops = -1
         previewPlayer?.prepareToPlay()
-        previewPlayer?.play()
-        isPreviewing = (previewPlayer?.isPlaying == true)
+        // play() 可能失败（资源缺失/会话被占），失败就不进入"播放中"状态
+        isPreviewing = ((previewPlayer?.play()) == true)
+        if !isPreviewing { previewPlayer = nil }
     }
 
     private func stopPreview() {
@@ -209,12 +217,8 @@ struct AlarmEditView: View {
                     Button {
                         isPreviewing ? stopPreview() : startPreview()
                     } label: {
-                        HStack {
-                            Label(isPreviewing ? "停止试听" : "试听铃声",
-                                  systemImage: isPreviewing ? "stop.circle.fill" : "play.circle")
-                            Spacer()
-                            if isPreviewing { ProgressView() }
-                        }
+                        Label(isPreviewing ? "停止试听" : "试听铃声",
+                              systemImage: isPreviewing ? "stop.circle.fill" : "play.circle")
                     }
                     .foregroundStyle(isPreviewing ? .red : Color.accentColor)
                 } else {

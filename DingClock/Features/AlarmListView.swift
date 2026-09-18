@@ -65,6 +65,8 @@ struct AlarmListView: View {
 struct TodayStatusCard: View {
 
     @EnvironmentObject private var store: AlarmStore
+    /// 点徽标弹出文案编辑
+    @State private var showBadgeEditor = false
 
     var body: some View {
         let now = Date()
@@ -82,6 +84,7 @@ struct TodayStatusCard: View {
                     .padding(.vertical, 4)
                     .background(kind.tint.opacity(0.16), in: Capsule())
                     .foregroundStyle(kind.tint)
+                    .onTapGesture { showBadgeEditor = true }
             }
 
             Text(kind.reason)
@@ -107,6 +110,49 @@ struct TodayStatusCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .sheet(isPresented: $showBadgeEditor) {
+            BadgeTextEditorView()
+                .presentationDetents([.medium])
+        }
+    }
+}
+
+// MARK: - 顶部徽标文案编辑（点首页徽标弹出）
+
+struct BadgeTextEditorView: View {
+
+    @EnvironmentObject private var store: AlarmStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("上班日的徽标") {
+                    TextField(AlarmStore.defaultWorkdayBadge, text: $store.badgeWorkdayText)
+                }
+                Section("休息日的徽标") {
+                    TextField(AlarmStore.defaultRestBadge, text: $store.badgeRestText)
+                }
+                Section {
+                    Text("首页顶部那枚徽标会显示你填的字。清空即恢复默认「\(AlarmStore.defaultWorkdayBadge)」/「\(AlarmStore.defaultRestBadge)」。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button(role: .destructive) {
+                        store.resetBadgeText()
+                    } label: {
+                        Label("恢复默认文案", systemImage: "arrow.uturn.backward")
+                    }
+                }
+            }
+            .navigationTitle("顶部文案")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
     }
 }
 

@@ -127,23 +127,6 @@ struct SettingsView: View {
                     )
                 }
 
-                Section("顶部文案") {
-                    TextField(store.workdayBadge, text: $store.badgeWorkdayText)
-                        .textInputAutocapitalization(.never)
-                    TextField(store.restBadge, text: $store.badgeRestText)
-                        .textInputAutocapitalization(.never)
-
-                    Text("首页顶部那枚徽标会显示你填的字：上班日填左边，休息日填右边。清空则恢复默认的「\(AlarmStore.defaultWorkdayBadge)」/「\(AlarmStore.defaultRestBadge)」。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Button(role: .destructive) {
-                        store.resetBadgeText()
-                    } label: {
-                        Label("恢复默认文案", systemImage: "arrow.uturn.backward")
-                    }
-                }
-
                 Section("关于") {
                     LabeledContent("版本", value: "1.0")
                 }
