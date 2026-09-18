@@ -31,6 +31,14 @@ enum RingtoneCatalog {
         Ringtone(id: "gentle_rise",   label: "轻柔渐强", fileName: "gentle_rise"),
         Ringtone(id: "birds",         label: "清晨鸟鸣", fileName: "birds"),
         Ringtone(id: "soft_pulse",    label: "柔和嗡鸣", fileName: "soft_pulse"),
+        Ringtone(id: "drop",          label: "水滴叮咚", fileName: "drop"),
+        Ringtone(id: "wind_chime",    label: "风铃",     fileName: "wind_chime"),
+        Ringtone(id: "piano_arp",     label: "钢琴琶音", fileName: "piano_arp"),
+        Ringtone(id: "xylophone",     label: "木琴",     fileName: "xylophone"),
+        Ringtone(id: "music_box",     label: "八音盒",   fileName: "music_box"),
+        Ringtone(id: "guitar",        label: "吉他扫弦", fileName: "guitar"),
+        Ringtone(id: "ebeat",         label: "电子节拍", fileName: "ebeat"),
+        Ringtone(id: "sunrise_horn",  label: "晨号",     fileName: "sunrise_horn"),
     ]
 
     /// 未知 id 一律退回系统默认，保证老数据/脏数据不会让排期失败

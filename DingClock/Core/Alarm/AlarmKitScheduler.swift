@@ -86,6 +86,16 @@ final class AlarmKitScheduler: AlarmScheduling, @unchecked Sendable {
                     limitHit = true
                     break
                 }
+                // 保险：自定义铃声导致调度失败时，退回系统默认再试一次。
+                // 闹钟响不响永远优先于铃声好不好听。
+                if plan.ringtoneID != nil {
+                    var fallback = plan
+                    fallback.ringtoneID = nil
+                    let configuration = makeConfiguration(plan: fallback, spec: spec)
+                    if (try? await manager.schedule(id: id, configuration: configuration)) != nil {
+                        continue
+                    }
+                }
                 throw error
             }
         }
