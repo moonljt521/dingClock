@@ -76,7 +76,7 @@ struct TodayStatusCard: View {
                 Text(now.chineseDayLabel())
                     .font(.headline)
                 Spacer()
-                Label(kind.isWorkday ? "要上班" : "休息", systemImage: kind.symbolName)
+                Label(kind.isWorkday ? store.workdayBadge : store.restBadge, systemImage: kind.symbolName)
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 9)
                     .padding(.vertical, 4)

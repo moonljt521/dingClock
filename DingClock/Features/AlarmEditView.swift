@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 /// 编辑界面的重复模式选项。
 /// 注意「工作日（含调休）」与「周一至周五」的差别 —— 前者正是 iOS 27 时钟 App 新增的能力。
@@ -44,12 +45,27 @@ struct AlarmEditView: View {
     @State private var respectsState: Bool
     @State private var timeDate: Date
     @State private var onceDate: Date
+    /// 铃声试听用。AlarmKit 没有"试听"API，这里是 AVFoundation 本地播放
+    @State private var previewPlayer: AVAudioPlayer?
+    @State private var isPreviewing = false
+
+    /// 当前选中的铃声 id（nil 视作系统默认）
+    private var selectedRingtoneID: String {
+        alarm.ringtoneID ?? RingtoneCatalog.systemDefaultID
+    }
 
     /// 铃声绑定为非可选（nil 一律视作系统默认）
     private var ringtoneBinding: Binding<String> {
         Binding(
-            get: { alarm.ringtoneID ?? RingtoneCatalog.systemDefaultID },
-            set: { alarm.ringtoneID = ($0 == RingtoneCatalog.systemDefaultID) ? nil : $0 }
+            get: { selectedRingtoneID },
+            set: { newValue in
+                stopPreview()
+                alarm.ringtoneID = (newValue == RingtoneCatalog.systemDefaultID) ? nil : newValue
+                // 换铃声立即试听新效果，不用再手动点
+                if RingtoneCatalog.soundName(forID: newValue) != nil {
+                    startPreview()
+                }
+            }
         )
     }
 
@@ -60,6 +76,23 @@ struct AlarmEditView: View {
                 Text(ringtone.label).tag(ringtone.id)
             }
         }
+    }
+
+    private func startPreview() {
+        guard let fileName = RingtoneCatalog.soundName(forID: selectedRingtoneID),
+              let url = Bundle.main.url(forResource: fileName, withExtension: "caf") else { return }
+        previewPlayer = try? AVAudioPlayer(contentsOf: url)
+        // 循环播放，直到手动停或换铃声 —— 闹钟声本来就是要循环的
+        previewPlayer?.numberOfLoops = -1
+        previewPlayer?.prepareToPlay()
+        previewPlayer?.play()
+        isPreviewing = (previewPlayer?.isPlaying == true)
+    }
+
+    private func stopPreview() {
+        previewPlayer?.stop()
+        previewPlayer = nil
+        isPreviewing = false
     }
 
     init(alarm: AlarmModel) {
@@ -171,6 +204,25 @@ struct AlarmEditView: View {
 
             Section("铃声") {
                 ringtonePicker
+
+                if RingtoneCatalog.soundName(forID: selectedRingtoneID) != nil {
+                    Button {
+                        isPreviewing ? stopPreview() : startPreview()
+                    } label: {
+                        HStack {
+                            Label(isPreviewing ? "停止试听" : "试听铃声",
+                                  systemImage: isPreviewing ? "stop.circle.fill" : "play.circle")
+                            Spacer()
+                            if isPreviewing { ProgressView() }
+                        }
+                    }
+                    .foregroundStyle(isPreviewing ? .red : Color.accentColor)
+                } else {
+                    Text("系统默认铃声无试听。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Text("响铃时手机震不震由系统「声音与触感 → 触感」决定；想要轻一点可以选「轻柔渐强」。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -219,6 +271,7 @@ struct AlarmEditView: View {
         }
         .navigationTitle(alarm.label.isEmpty ? "闹钟" : alarm.label)
         .navigationBarTitleDisplayMode(.inline)
+        .onDisappear { stopPreview() }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("取消") { dismiss() }

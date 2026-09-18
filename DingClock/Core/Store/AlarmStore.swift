@@ -41,6 +41,42 @@ final class AlarmStore: ObservableObject {
     private let holidayStore: HolidayStore
     private let fileManager = FileManager.default
 
+    // MARK: - 顶部徽标文案（用户可自定义）
+
+    static let defaultWorkdayBadge = "要上班"
+    static let defaultRestBadge = "休息"
+
+    private enum BadgeDefaultsKey {
+        static let workday = "badge.workdayText"
+        static let rest = "badge.restText"
+    }
+
+    /// 首页顶部「要上班」徽标的替代文案；留空用默认
+    @Published var badgeWorkdayText: String {
+        didSet { defaults.set(badgeWorkdayText, forKey: BadgeDefaultsKey.workday) }
+    }
+    /// 首页顶部「休息」徽标的替代文案；留空用默认
+    @Published var badgeRestText: String {
+        didSet { defaults.set(badgeRestText, forKey: BadgeDefaultsKey.rest) }
+    }
+
+    /// 实际渲染用的文案（空串/纯空白一律退回默认）
+    var workdayBadge: String { normalizedBadge(badgeWorkdayText, fallback: Self.defaultWorkdayBadge) }
+    var restBadge: String { normalizedBadge(badgeRestText, fallback: Self.defaultRestBadge) }
+
+    private func normalizedBadge(_ text: String, fallback: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallback : trimmed
+    }
+
+    func resetBadgeText() {
+        badgeWorkdayText = ""
+        badgeRestText = ""
+    }
+
+    private let defaults: UserDefaults = .standard
+
+
     private var storageDirectory: URL {
         let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
@@ -55,6 +91,9 @@ final class AlarmStore: ObservableObject {
         self.scheduler = scheduler
         self.holidayStore = holidayStore
         self.planner = SchedulePlanner(calendar: calendar)
+        // 注意：先读 UserDefaults 再赋值给 @Published，didSet 会把刚读的值原样写回，无害
+        self.badgeWorkdayText = defaults.string(forKey: BadgeDefaultsKey.workday) ?? ""
+        self.badgeRestText = defaults.string(forKey: BadgeDefaultsKey.rest) ?? ""
     }
 
     // MARK: - 生命周期
