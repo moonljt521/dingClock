@@ -48,6 +48,8 @@ struct AlarmEditView: View {
     /// 铃声试听用。AlarmKit 没有"试听"API，这里是 AVFoundation 本地播放
     @State private var previewPlayer: AVAudioPlayer?
     @State private var isPreviewing = false
+    /// 包内缺音频资源时置真（打包流程漏了资源，如实提示而不是无声失败）
+    @State private var previewMissing = false
 
     /// 当前选中的铃声 id（nil 视作系统默认）
     private var selectedRingtoneID: String {
@@ -86,8 +88,12 @@ struct AlarmEditView: View {
         try? session.setCategory(.playback, mode: .default)
         try? session.setActive(true)
 
-        guard let fileName = RingtoneCatalog.soundName(forID: selectedRingtoneID),
-              let url = Bundle.main.url(forResource: fileName, withExtension: "caf") else { return }
+        guard let fileName = RingtoneCatalog.soundName(forID: selectedRingtoneID) else { return }
+        guard let url = Bundle.main.url(forResource: fileName, withExtension: "caf") else {
+            previewMissing = true
+            return
+        }
+        previewMissing = false
         previewPlayer = try? AVAudioPlayer(contentsOf: url)
         // 循环播放，直到手动停或换铃声 —— 闹钟声本来就是要循环的
         previewPlayer?.numberOfLoops = -1
@@ -214,13 +220,19 @@ struct AlarmEditView: View {
                 ringtonePicker
 
                 if RingtoneCatalog.soundName(forID: selectedRingtoneID) != nil {
-                    Button {
-                        isPreviewing ? stopPreview() : startPreview()
-                    } label: {
-                        Label(isPreviewing ? "停止试听" : "试听铃声",
-                              systemImage: isPreviewing ? "stop.circle.fill" : "play.circle")
+                    if previewMissing {
+                        Label("铃声资源缺失，请更新 App", systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else {
+                        Button {
+                            isPreviewing ? stopPreview() : startPreview()
+                        } label: {
+                            Label(isPreviewing ? "停止试听" : "试听铃声",
+                                  systemImage: isPreviewing ? "stop.circle.fill" : "play.circle")
+                        }
+                        .foregroundStyle(isPreviewing ? .red : Color.accentColor)
                     }
-                    .foregroundStyle(isPreviewing ? .red : Color.accentColor)
                 } else {
                     Text("系统默认铃声无试听。")
                         .font(.caption)
