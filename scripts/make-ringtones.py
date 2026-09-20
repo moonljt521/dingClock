@@ -4,8 +4,13 @@
 
 12 段铃声 + 系统默认，与 DingClock/Core/Alarm/Ringtone.swift 的 RingtoneCatalog 对应。
 
-格式：CAF / AAC 单声道（约 7.5:1 压缩）。
-  · 12 段合计 ~200KB；AVAudioPlayer 试听与 AlarmKit 响铃共用这批文件
+格式：CAF / IMA4 单声道（4:1 压缩）。
+  · 12 段合计 ~400KB；AVAudioPlayer 试听与 AlarmKit 响铃共用这批文件
+
+⚠️ 历史 bug：曾用 `-d aac` 压缩。AVAudioPlayer 能播 AAC（试听正常），
+但系统提示音播放器（AlarmKit 响铃）只认 Linear PCM / MA4(IMA4) / µLaw / aLaw，
+AAC 解不了就静默退回系统默认铃声 —— 「试听有声、响铃还是默认」的根因。
+禁止改回 aac。
 """
 import math
 import random
@@ -39,8 +44,8 @@ def render(name, dur, sample_fn, gain=0.8):
 
     os.makedirs(OUT_DIR, exist_ok=True)
     caf = os.path.join(OUT_DIR, f"{name}.caf")
-    # IMA4：4:1 无损听感压缩，iOS 通知声音的标准格式
-    subprocess.run(["afconvert", "-f", "caff", "-d", "aac", "-c", "1",
+    # IMA4（MA4）：4:1 压缩，系统提示音（通知/AlarmKit 响铃）唯一支持的有损格式
+    subprocess.run(["afconvert", "-f", "caff", "-d", "ima4", "-c", "1",
                     wav, caf], check=True)
     os.remove(wav)
     print(f"  ✅ {name:<12} {dur:>4.1f}s  {os.path.getsize(caf)/1024:>4.0f} KB")

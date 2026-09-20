@@ -20,6 +20,11 @@ struct Ringtone: Identifiable, Equatable, Sendable {
 /// ⚠️ AlarmKit 的 `AlertSound` 只有 `.default` 和 `.named(资源名)` 两个选项，
 /// **没有**"无声/仅震动" —— 这是苹果有意为之（AlarmKit 的承诺是"一定叫醒你"）。
 /// 震动由手机「设置 → 声音与触感 → 触感」的全局开关决定，App 无权指定。
+///
+/// ⚠️ 资源格式必须是 CAF / **IMA4**（系统提示音只认 Linear PCM / MA4 / µLaw / aLaw）。
+/// 用 AAC 压缩的话 AVAudioPlayer 试听正常，但响铃时系统解码不了，
+/// 会静默退回系统默认铃声（2026-09-21 修过一次，见 make-ringtones.py 头部注释）。
+/// `named()` 是否要求带扩展名文档没写死，排期时由 AlarmKitScheduler 探测链两种都试。
 enum RingtoneCatalog {
 
     static let systemDefaultID = "system_default"

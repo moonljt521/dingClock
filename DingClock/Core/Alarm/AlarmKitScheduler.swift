@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 #if canImport(AlarmKit)
 import AlarmKit
@@ -28,6 +29,9 @@ import SwiftUI
 final class AlarmKitScheduler: AlarmScheduling, @unchecked Sendable {
 
     private var manager: AlarmManager { AlarmManager.shared }
+
+    /// 铃声排期日志：格式探测是否命中全靠它回溯
+    private static let log = Logger(subsystem: "com.moonding.dingclock", category: "AlarmKitScheduler")
 
     var isSupported: Bool { true }
     var backendName: String { "AlarmKit（系统级闹钟）" }
@@ -77,27 +81,34 @@ final class AlarmKitScheduler: AlarmScheduling, @unchecked Sendable {
 
         // 2) 下发缺失的。撞到数量上限就停手 —— plans 已按时间升序，
         //    所以留下的是最早的那些，近期响铃一定有保障。
-        for (id, plan) in desired {
-            do {
-                let configuration = makeConfiguration(plan: plan, spec: spec)
-                _ = try await manager.schedule(id: id, configuration: configuration)
-            } catch {
-                if isLimitError(error) {
-                    limitHit = true
-                    break
-                }
-                // 保险：自定义铃声导致调度失败时，退回系统默认再试一次。
-                // 闹钟响不响永远优先于铃声好不好听。
-                if plan.ringtoneID != nil {
-                    var fallback = plan
-                    fallback.ringtoneID = nil
-                    let configuration = makeConfiguration(plan: fallback, spec: spec)
-                    if (try? await manager.schedule(id: id, configuration: configuration)) != nil {
-                        continue
+        outer: for (id, plan) in desired {
+            // 铃声名格式探测链：带扩展名 → 裸资源名 → 系统默认。
+            // AlertSound.named 是否要求带扩展名官方文档没写死，逐级试最稳；
+            // 闹钟响不响永远优先于铃声好不好听。
+            var lastError: Error?
+            for sound in soundCandidates(ringtoneID: plan.ringtoneID) {
+                do {
+                    let configuration = makeConfiguration(plan: plan, spec: spec, soundName: sound)
+                    _ = try await manager.schedule(id: id, configuration: configuration)
+                    if let sound {
+                        Self.log.info("铃声排期成功：\(id.uuidString, privacy: .public) → \(sound, privacy: .public)")
                     }
+                    lastError = nil
+                    continue outer
+                } catch {
+                    if isLimitError(error) {
+                        limitHit = true
+                        break outer
+                    }
+                    lastError = error
+                    Self.log.warning("铃声 \(sound ?? "default", privacy: .public) 排期失败，退下一档：\(String(describing: error), privacy: .public)")
                 }
-                throw error
             }
+            // 所有档位都失败（连系统默认都不行）——说明问题不在铃声，原样抛出
+            throw lastError ?? NSError(
+                domain: "DingClock.AlarmKitScheduler", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "闹钟 \(id.uuidString) 排期失败"]
+            )
         }
     }
 
@@ -123,9 +134,18 @@ final class AlarmKitScheduler: AlarmScheduling, @unchecked Sendable {
 
     // MARK: - 配置
 
+    /// 铃声名的候选序列：
+    /// 系统默认 → [nil]；自定义 → ["xxx.caf", "xxx", nil]。
+    /// AlertSound.named 的名字格式官方文档只说"sound file"，这里两种都试。
+    private func soundCandidates(ringtoneID: String?) -> [String?] {
+        guard let name = RingtoneCatalog.soundName(forID: ringtoneID) else { return [nil] }
+        return [name + ".caf", name, nil]
+    }
+
     private func makeConfiguration(
         plan: PlannedFire,
-        spec: AlarmPresentationSpec
+        spec: AlarmPresentationSpec,
+        soundName: String?
     ) -> AlarmManager.AlarmConfiguration<DingClockAlarmMetadata> {
 
         let title = LocalizedStringResource(stringLiteral: plan.label)
@@ -173,10 +193,9 @@ final class AlarmKitScheduler: AlarmScheduling, @unchecked Sendable {
         )
 
         // 铃声：AlarmKit 只给 .default 和 .named(资源名)，没有"无声/仅震动"。
-        // 未知 id 会在 RingtoneCatalog 里退回系统默认，所以这里不会因为脏数据失败。
+        // 名字由 soundCandidates 探测链给出，这里只负责包装。
         let sound: ActivityKit.AlertConfiguration.AlertSound =
-            RingtoneCatalog.soundName(forID: plan.ringtoneID)
-                .map { ActivityKit.AlertConfiguration.AlertSound.named($0) } ?? .default
+            soundName.map { ActivityKit.AlertConfiguration.AlertSound.named($0) } ?? .default
 
         return AlarmManager.AlarmConfiguration(
             countdownDuration: countdownDuration,
