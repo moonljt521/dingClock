@@ -9,10 +9,11 @@ struct RootView: View {
     /// 方便截图与自动化验证（`simctl launch` 用 `SIMCTL_CHILD_DINGCLOCK_TAB=1` 传入）。
     @State private var selection: Int = RootView.initialTab
 
+    /// 0=闹钟 1=倒计时 2=秒表 3=响铃日历 4=设置
     static var initialTab: Int {
         guard let raw = ProcessInfo.processInfo.environment["DINGCLOCK_TAB"],
               let index = Int(raw) else { return 0 }
-        return min(max(index, 0), 2)
+        return min(max(index, 0), 4)
     }
 
     var body: some View {
@@ -21,13 +22,21 @@ struct RootView: View {
                 .tabItem { Label("闹钟", systemImage: "alarm.fill") }
                 .tag(0)
 
+            CountdownView()
+                .tabItem { Label("倒计时", systemImage: "timer") }
+                .tag(1)
+
+            StopwatchView()
+                .tabItem { Label("秒表", systemImage: "stopwatch") }
+                .tag(2)
+
             SchedulePreviewView()
                 .tabItem { Label("响铃日历", systemImage: "calendar") }
-                .tag(1)
+                .tag(3)
 
             SettingsView()
                 .tabItem { Label("设置", systemImage: "gearshape.fill") }
-                .tag(2)
+                .tag(4)
         }
         .task {
             await store.bootstrap()
