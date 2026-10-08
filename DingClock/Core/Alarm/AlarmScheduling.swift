@@ -27,24 +27,14 @@ enum AlarmAuthState: Equatable, Sendable {
     }
 }
 
-/// 排期时的呈现参数，与具体框架解耦
-struct AlarmPresentationSpec: Sendable, Equatable {
-    var title: String
-    var snoozeEnabled: Bool
-    /// 稍后提醒时长（秒）
-    var snoozeDuration: TimeInterval
-
-    init(title: String = "该起床了", snoozeEnabled: Bool = true, snoozeDuration: TimeInterval = 9 * 60) {
-        self.title = title
-        self.snoozeEnabled = snoozeEnabled
-        self.snoozeDuration = snoozeDuration
-    }
-}
-
 /// 响铃后端抽象。
 ///
 /// 存在的意义：让「工作日判定 + 排期」这套核心逻辑与 Apple 的具体框架解耦，
 /// 从而既能在没有 iOS 26 SDK 的机器上编译验证，又能在 Xcode 26 下原样切到真闹钟。
+///
+/// - Note: 呈现参数（标题、是否稍后提醒）**随每次响铃走**，即 `PlannedFire` 上的字段。
+///   早先这里有一个全局的 `AlarmPresentationSpec`，结果「A 闹钟关了稍后提醒」会被
+///   「B 闹钟开着」覆盖 —— 多闹钟场景下全局参数必然互相污染，所以拿掉了。
 protocol AlarmScheduling: AnyObject, Sendable {
     /// 当前环境是否支持真正的系统级闹钟（AlarmKit）
     var isSupported: Bool { get }
@@ -63,7 +53,10 @@ protocol AlarmScheduling: AnyObject, Sendable {
     /// 撞上时会收到 `maximumLimitReached`。实现应当**停手而不是抛错**：
     /// 保留已排进去的那些（plans 按时间升序，所以留下的是最早的），
     /// 并把 `limitHit` 置真，由上层如实告知用户。
-    func reconcile(plans: [PlannedFire], spec: AlarmPresentationSpec) async throws
+    ///
+    /// - Important: 对账只覆盖「闹钟排期」这一片 ID 空间。`StableID` 里登记的
+    ///   保留 ID（倒计时）必须原样留着，否则每次刷新都会把正在跑的倒计时掐掉。
+    func reconcile(plans: [PlannedFire]) async throws
 
     /// 上一次 reconcile 是否撞到了系统的同时闹钟数上限
     var limitHit: Bool { get }

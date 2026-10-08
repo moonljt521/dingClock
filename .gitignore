@@ -15,6 +15,7 @@ DingClock.xcodeproj/
 
 # 工作区本地数据（Agent 的工作日志，不属于工程源码）
 .workbuddy/
+.workbuddy-ai/
 
 # macOS
 .DS_Store

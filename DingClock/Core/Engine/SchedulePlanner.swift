@@ -12,6 +12,14 @@ struct PlannedFire: Identifiable, Equatable, Sendable {
     var label: String
     /// 该次响铃用的铃声资源名；nil = 系统默认
     var ringtoneID: String?
+    /// 该次响铃所属闹钟是否启用「稍后提醒」。
+    ///
+    /// 刻意随每次响铃一起下发，而不是在排期时传一个全局参数 ——
+    /// 多个闹钟各自的开关心智是独立的，用全局参数会让「A 关了稍后提醒」
+    /// 被「B 开着」覆盖掉。
+    var snoozeEnabled: Bool
+    /// 稍后提醒时长（秒）
+    var snoozeDuration: TimeInterval
 
     var dayKey: String { id }
 }
@@ -35,6 +43,10 @@ struct DayPreview: Identifiable, Equatable, Sendable {
 /// 所以我们必须把工作日**逐个展开成具体日期**，一个一个排进去。
 struct SchedulePlanner: Sendable {
 
+    /// 「稍后提醒」时长。AlarmKit 的稍后提醒是固定时长，不做每闹钟可调 ——
+    /// 多一个旋钮，用户也不会去调，默认 9 分钟是手机闹钟的通用值。
+    static let defaultSnoozeDuration: TimeInterval = 9 * 60
+
     var calendar: Calendar
 
     init(calendar: Calendar = .current) {
@@ -56,6 +68,7 @@ struct SchedulePlanner: Sendable {
         // 「只响一次」：用户显式指定了日期，就照响不误（UI 会另行提示当天是否撞上节假日）
         if case .once(let day) = alarm.repeatMode {
             guard let fire = fireTime(on: day, hour: alarm.hour, minute: alarm.minute), fire > now else { return [] }
+            guard !alarm.skips(fire, calendar: calendar) else { return [] }
             return [makeFire(alarm: alarm, fire: fire, kind: workday.kind(for: fire))]
         }
 
@@ -69,6 +82,8 @@ struct SchedulePlanner: Sendable {
             let kind = workday.kind(for: day)
             guard kind.isWorkday else { continue }
             guard let fire = fireTime(on: day, hour: alarm.hour, minute: alarm.minute), fire > now else { continue }
+            // 「仅这次关闭」：这一天不排，但窗口继续往后铺
+            guard !alarm.skips(fire, calendar: calendar) else { continue }
             result.append(makeFire(alarm: alarm, fire: fire, kind: kind))
             if let maxCount, result.count >= maxCount { break }
         }
@@ -102,12 +117,14 @@ struct SchedulePlanner: Sendable {
 
             let rings = shouldRing && alarm.isEnabled
             let fire = fireTime(on: date, hour: alarm.hour, minute: alarm.minute)
+            // 「仅这次关闭」的那一天，日历上如实显示成不响
+            let skipped = fire.map { alarm.skips($0, calendar: calendar) } ?? false
             return DayPreview(
                 key: DateKey.string(date, calendar: calendar),
                 date: date,
                 kind: kind,
-                rings: rings,
-                fireDate: rings ? fire : nil
+                rings: rings && !skipped,
+                fireDate: (rings && !skipped) ? fire : nil
             )
         }
     }
@@ -115,14 +132,21 @@ struct SchedulePlanner: Sendable {
     // MARK: - Private
 
     private func makeFire(alarm: AlarmModel, fire: Date, kind: DayKind) -> PlannedFire {
-        PlannedFire(
-            id: StableID.fireSeed(alarmID: alarm.id, fireDate: fire, calendar: calendar),
-            uuid: StableID.fireID(alarmID: alarm.id, fireDate: fire, calendar: calendar),
+        let appearance = StableID.appearanceFingerprint(
+            label: alarm.label,
+            ringtoneID: alarm.ringtoneID,
+            snoozeEnabled: alarm.snoozeEnabled
+        )
+        return PlannedFire(
+            id: StableID.fireSeed(alarmID: alarm.id, fireDate: fire, appearance: appearance, calendar: calendar),
+            uuid: StableID.fireID(alarmID: alarm.id, fireDate: fire, appearance: appearance, calendar: calendar),
             fireDate: fire,
             dayKind: kind,
             alarmID: alarm.id,
             label: alarm.label,
-            ringtoneID: alarm.ringtoneID
+            ringtoneID: alarm.ringtoneID,
+            snoozeEnabled: alarm.snoozeEnabled,
+            snoozeDuration: SchedulePlanner.defaultSnoozeDuration
         )
     }
 

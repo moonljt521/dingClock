@@ -249,4 +249,92 @@ final class SchedulePlannerTests: XCTestCase {
         XCTAssertTrue(earlyIDs.isDisjoint(with: laterIDs), "改时间后 ID 必须完全不同，旧排期才会被对账取消")
         XCTAssertEqual(earlyIDs.count, laterIDs.count, "改时间不该改变会响的天数")
     }
+
+    // MARK: - 仅这次关闭
+
+    /// 「仅这次关闭」只该滤掉指定的那一次，之后照常响
+    func testSkipNextFireRemovesExactlyThatOccurrence() {
+        let from = TestCalendar.date(2026, 9, 17, 6, 0)
+        var alarm = AlarmModel(hour: 7, minute: 0, windowDays: 30)
+        let workday = makeCalendar()
+
+        let baseline = planner().fires(for: alarm, workday: workday, from: from)
+        XCTAssertGreaterThanOrEqual(baseline.count, 3, "这个窗口该有足够多的响铃可测")
+
+        let target = baseline[1].fireDate
+        alarm.skippedFireDate = target
+        let afterSkip = planner().fires(for: alarm, workday: workday, from: from)
+
+        XCTAssertEqual(afterSkip.count, baseline.count - 1, "只该少一次")
+        XCTAssertFalse(
+            afterSkip.contains { cal.isDate($0.fireDate, equalTo: target, toGranularity: .minute) },
+            "被跳过的那一次不该再出现"
+        )
+        XCTAssertEqual(afterSkip.first?.fireDate, baseline.first?.fireDate, "第一次响铃不受影响")
+        XCTAssertEqual(afterSkip.last?.fireDate, baseline.last?.fireDate, "窗口末端不受影响")
+    }
+
+    /// 跳过的判定要精确到分钟：同一天差一分钟的另一次响铃不该被误伤
+    func testSkipIsMinutePrecise() {
+        let from = TestCalendar.date(2026, 9, 17, 6, 0)
+        var alarm = AlarmModel(hour: 7, minute: 0, windowDays: 7)
+        let workday = makeCalendar()
+
+        let fires = planner().fires(for: alarm, workday: workday, from: from)
+        alarm.skippedFireDate = fires[0].fireDate.addingTimeInterval(60)
+        let after = planner().fires(for: alarm, workday: workday, from: from)
+
+        XCTAssertEqual(after.count, fires.count, "只差一分钟不该被当成同一次")
+    }
+
+    /// 日历预告里，被跳过的那一天要显示成不响
+    func testPreviewMarksSkippedDayAsSilent() {
+        var alarm = AlarmModel(hour: 7, minute: 0)
+        let workday = makeCalendar()
+        let day = TestCalendar.date(2026, 9, 17) // 周四，正常上班日
+        alarm.skippedFireDate = TestCalendar.date(2026, 9, 17, 7, 0)
+
+        let previews = planner().preview(for: alarm, workday: workday, from: day, days: 2)
+        XCTAssertEqual(previews.first?.rings, false, "被跳过的那天该显示成静音")
+        XCTAssertNil(previews.first?.fireDate)
+        XCTAssertEqual(previews.dropFirst().first?.rings, true, "第二天（周五）要恢复正常")
+    }
+
+    // MARK: - 多闹钟的独立性
+
+    /// 每个闹钟的「稍后提醒」必须各归各的 ——
+    /// 早先用全局参数时，「A 关了」会被「B 开着」覆盖掉。
+    func testSnoozeFlagTravelsWithEachFire() {
+        let from = TestCalendar.date(2026, 9, 17, 6, 0)
+        let workday = makeCalendar()
+
+        var withSnooze = AlarmModel(hour: 7, minute: 0, windowDays: 7)
+        withSnooze.snoozeEnabled = true
+
+        var withoutSnooze = AlarmModel(hour: 8, minute: 0, windowDays: 7)
+        withoutSnooze.snoozeEnabled = false
+
+        let a = planner().fires(for: withSnooze, workday: workday, from: from)
+        let b = planner().fires(for: withoutSnooze, workday: workday, from: from)
+
+        XCTAssertFalse(a.isEmpty)
+        XCTAssertFalse(b.isEmpty)
+        XCTAssertTrue(a.allSatisfy(\.snoozeEnabled), "开了稍后提醒的闹钟，每次都该带着这个设置")
+        XCTAssertTrue(b.allSatisfy { !$0.snoozeEnabled }, "关了的闹钟不该被另一个闹钟带开")
+        XCTAssertTrue(a.allSatisfy { $0.alarmID == withSnooze.id })
+        XCTAssertTrue(b.allSatisfy { $0.alarmID == withoutSnooze.id })
+    }
+
+    /// 「仅这次关闭」之后开关该显示成关的，但闹钟本身没被停用
+    func testIsOnReflectsSkipButKeepsAlarmEnabled() {
+        var alarm = AlarmModel(hour: 7, minute: 0)
+        XCTAssertTrue(alarm.isOn)
+
+        alarm.skippedFireDate = TestCalendar.date(2026, 9, 18, 7, 0)
+        XCTAssertFalse(alarm.isOn, "仅这次关闭后，开关该是关的")
+        XCTAssertTrue(alarm.isEnabled, "但闹钟本身不能被停用，否则第二天会静默睡过头")
+
+        alarm.isEnabled = false
+        XCTAssertFalse(alarm.isOn)
+    }
 }

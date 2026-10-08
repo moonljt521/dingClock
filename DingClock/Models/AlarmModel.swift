@@ -44,6 +44,15 @@ struct AlarmModel: Identifiable, Codable, Equatable, Sendable {
     var windowDays: Int
     var createdAt: Date
 
+    /// 「仅这次关闭」：精确到分钟地跳过**一次**响铃，闹钟本身保持开启。
+    ///
+    /// 和 `isEnabled = false` 的区别是语义：前者是"今天多睡一天，明天照常"，
+    /// 后者是"以后都别响了"。两者在列表里都表现为开关是关的（见 `isOn`），
+    /// 但只有前者会自动恢复。
+    ///
+    /// 到点之后由 `AlarmStore` 自动清空，所以不需要用户再去手动打开。
+    var skippedFireDate: Date?
+
     init(
         id: UUID = UUID(),
         hour: Int = 7,
@@ -55,7 +64,8 @@ struct AlarmModel: Identifiable, Codable, Equatable, Sendable {
         snoozeEnabled: Bool = true,
         ringtoneID: String? = nil,
         windowDays: Int = 21,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        skippedFireDate: Date? = nil
     ) {
         self.id = id
         self.hour = hour
@@ -68,6 +78,19 @@ struct AlarmModel: Identifiable, Codable, Equatable, Sendable {
         self.ringtoneID = ringtoneID
         self.windowDays = windowDays
         self.createdAt = createdAt
+        self.skippedFireDate = skippedFireDate
+    }
+
+    /// 用户视角的「这个闹钟现在开着吗」。
+    ///
+    /// 「仅这次关闭」之后 `isEnabled` 仍是 true，但对用户来说它就是关的 ——
+    /// 列表上的开关读这个属性，而不是直接读 `isEnabled`。
+    var isOn: Bool { isEnabled && skippedFireDate == nil }
+
+    /// 这次响铃是否被「仅这次关闭」跳过了（精确到分钟）
+    func skips(_ fireDate: Date, calendar: Calendar = .current) -> Bool {
+        guard let skipped = skippedFireDate else { return false }
+        return calendar.isDate(fireDate, equalTo: skipped, toGranularity: .minute)
     }
 
     /// 面向用户的一句话描述

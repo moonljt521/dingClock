@@ -36,7 +36,7 @@ final class DebugAlarmScheduler: AlarmScheduling, @unchecked Sendable {
 
     func requestAuthorization() async throws -> Bool { false }
 
-    func reconcile(plans: [PlannedFire], spec: AlarmPresentationSpec) async throws {
+    func reconcile(plans: [PlannedFire]) async throws {
         lock.lock()
         _plans = plans
         _reconcileCount += 1

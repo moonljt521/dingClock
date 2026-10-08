@@ -6,6 +6,8 @@ struct AlarmListView: View {
 
     @State private var editingAlarm: AlarmModel?
     @State private var isCreating = false
+    /// 用户拨关某个闹钟时暂存下来，等他回答「仅这次还是永久」
+    @State private var pendingTurnOff: AlarmModel?
 
     var body: some View {
         NavigationStack {
@@ -24,7 +26,12 @@ struct AlarmListView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(store.alarms) { alarm in
-                            AlarmRowView(alarm: alarm) { editingAlarm = alarm }
+                            AlarmRowView(
+                                alarm: alarm,
+                                onTap: { editingAlarm = alarm },
+                                onTurnOn: { turnOn(alarm) },
+                                onTurnOff: { pendingTurnOff = alarm }
+                            )
                         }
                         .onDelete(perform: delete)
                     }
@@ -51,7 +58,44 @@ struct AlarmListView: View {
             .sheet(item: $editingAlarm) { alarm in
                 NavigationStack { AlarmEditView(alarm: alarm) }
             }
+            .confirmationDialog(
+                turnOffTitle,
+                isPresented: Binding(
+                    get: { pendingTurnOff != nil },
+                    set: { if !$0 { pendingTurnOff = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingTurnOff
+            ) { alarm in
+                Button("仅这次关闭") {
+                    store.skipNextFire(alarm)
+                    Task { await store.refreshSchedule() }
+                }
+                Button("永久关闭", role: .destructive) {
+                    store.disablePermanently(alarm)
+                    Task { await store.refreshSchedule() }
+                }
+                Button("取消", role: .cancel) {}
+            } message: { alarm in
+                Text(turnOffMessage(for: alarm))
+            }
         }
+    }
+
+    private var turnOffTitle: String {
+        "关闭「\(pendingTurnOff?.label ?? "闹钟")」？"
+    }
+
+    private func turnOffMessage(for alarm: AlarmModel) -> String {
+        if let next = store.nextFire(for: alarm) {
+            return "「仅这次」跳过 \(next.fireDate.relativeDescription()) 这一次，之后照常响；「永久关闭」会停用这个闹钟，直到你手动打开。"
+        }
+        return "「仅这次」跳过下一次响铃，之后照常响；「永久关闭」会停用这个闹钟，直到你手动打开。"
+    }
+
+    private func turnOn(_ alarm: AlarmModel) {
+        store.turnOn(alarm)
+        Task { await store.refreshSchedule() }
     }
 
     private func delete(at offsets: IndexSet) {
@@ -164,6 +208,10 @@ struct AlarmRowView: View {
 
     let alarm: AlarmModel
     var onTap: () -> Void
+    /// 用户把开关拨开
+    var onTurnOn: () -> Void
+    /// 用户把开关拨关 —— 不直接关，交给上层问「仅这次还是永久」
+    var onTurnOff: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -171,15 +219,16 @@ struct AlarmRowView: View {
                 Text(alarm.timeDescription)
                     .font(.system(size: 42, weight: .light, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(alarm.isEnabled ? Color.primary : Color.secondary)
+                    .foregroundStyle(alarm.isOn ? Color.primary : Color.secondary)
 
                 Spacer()
 
+                // 注意这里读的是 isOn 而不是 isEnabled：
+                // 「仅这次关闭」之后 isEnabled 仍是 true，但开关必须显示成关的。
                 Toggle("", isOn: Binding(
-                    get: { alarm.isEnabled },
+                    get: { alarm.isOn },
                     set: { newValue in
-                        store.setEnabled(alarm, newValue)
-                        Task { await store.refreshSchedule() }
+                        if newValue { onTurnOn() } else { onTurnOff() }
                     }
                 ))
                 .labelsHidden()
@@ -189,8 +238,21 @@ struct AlarmRowView: View {
                 Text(alarm.label)
                     .font(.subheadline.weight(.medium))
                 PatternBadge(text: alarm.patternDescription)
+                if alarm.skippedFireDate != nil {
+                    PatternBadge(text: "仅这次已跳过")
+                }
             }
-            .foregroundStyle(alarm.isEnabled ? Color.primary : Color.secondary)
+            .foregroundStyle(alarm.isOn ? Color.primary : Color.secondary)
+
+            if let skipped = alarm.skippedFireDate {
+                HStack(spacing: 5) {
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.system(size: 10))
+                    Text("跳过 \(skipped.relativeDescription()) 这一次，之后照常响")
+                        .font(.caption)
+                }
+                .foregroundStyle(Palette.manual)
+            }
 
             if let next = store.nextFire(for: alarm) {
                 HStack(spacing: 5) {
@@ -201,7 +263,7 @@ struct AlarmRowView: View {
                 }
                 .foregroundStyle(next.dayKind.tint)
             } else {
-                Text("当前设置下不会响铃")
+                Text(alarm.isEnabled ? "当前设置下不会响铃" : "已关闭，不再响铃")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

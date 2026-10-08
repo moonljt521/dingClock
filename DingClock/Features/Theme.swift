@@ -53,6 +53,14 @@ extension Date {
         return f.string(from: self)
     }
 
+    /// 「07:30」
+    var chineseTimeLabel: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "HH:mm"
+        return f.string(from: self)
+    }
+
     var chineseMonthTitle: String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")

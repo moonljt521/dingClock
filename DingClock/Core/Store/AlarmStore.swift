@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os.log
 
 /// App 的单一数据源与编排中心。
 ///
@@ -40,6 +41,13 @@ final class AlarmStore: ObservableObject {
     let planner: SchedulePlanner
     private let holidayStore: HolidayStore
     private let fileManager = FileManager.default
+
+    /// 排期链路日志。
+    ///
+    /// 用 `notice` 而不是 `info`：os.log 的 info/debug 默认**只留在内存**里，不进 syslog ——
+    /// 真机上出了问题抓日志会什么都看不到（这次排查"闹钟不响"就卡在这里）。
+    /// notice 会落盘，又不像 error 那样把正常流程标成故障。
+    private static let log = Logger(subsystem: "com.moonding.dingclock", category: "AlarmStore")
 
     // MARK: - 顶部徽标文案（用户可自定义）
 
@@ -122,6 +130,8 @@ final class AlarmStore: ObservableObject {
             return
         }
 
+        pruneExpiredSkips()
+
         // AlarmKit 必须先授权，否则 schedule() 直接抛错（com.apple.AlarmKit.Alarm 错误 1）。
         // 未决定时就地请求；被拒绝则明确告诉用户去哪里开，而不是甩一个系统错误码。
         if scheduler.isSupported {
@@ -133,6 +143,7 @@ final class AlarmStore: ObservableObject {
             if authState != .authorized {
                 statusMessage = "还没给闹钟权限：设置 → 叮咚 → 打开「闹钟」"
                 lastError = nil
+                Self.log.notice("[排期] 授权状态 \(self.authState.label, privacy: .public)，不排期直接返回")
                 return
             }
         }
@@ -146,13 +157,10 @@ final class AlarmStore: ObservableObject {
         }
         plans.sort { $0.fireDate < $1.fireDate }
 
-        let spec = AlarmPresentationSpec(
-            title: alarms.first?.label ?? "该起床了",
-            snoozeEnabled: alarms.contains { $0.snoozeEnabled }
-        )
+        Self.log.notice("[排期] 启用闹钟 \(self.alarms.filter(\.isEnabled).count) 个 → 展开出 \(plans.count) 个响铃时刻")
 
         do {
-            try await scheduler.reconcile(plans: plans, spec: spec)
+            try await scheduler.reconcile(plans: plans)
             scheduledCount = (try? await scheduler.scheduledCount()) ?? plans.count
             lastError = nil
 
@@ -179,7 +187,9 @@ final class AlarmStore: ObservableObject {
         } catch {
             lastError = error.localizedDescription
             statusMessage = "排期失败：\(error.localizedDescription)"
+            Self.log.error("[排期] 失败：\(error.localizedDescription, privacy: .public)")
         }
+        Self.log.notice("[排期] 结果：\(self.statusMessage, privacy: .public)")
     }
 
     func requestAuthorization() async {
@@ -285,6 +295,57 @@ final class AlarmStore: ObservableObject {
         guard let idx = alarms.firstIndex(where: { $0.id == alarm.id }) else { return }
         alarms[idx].isEnabled = enabled
         persistAlarms()
+    }
+
+    // MARK: - 「仅这次」与「永久关闭」
+
+    /// 仅这次关闭：跳过**下一次**响铃，闹钟本身保持开启，之后照常响。
+    ///
+    /// 实现上是记下"要跳过的那一次响铃时刻"，由 `SchedulePlanner` 在展开排期时
+    /// 精确到分钟地把它滤掉。不采用「临时把 isEnabled 置 false」的做法——
+    /// 那样没有任何东西能把闹钟自动打开，用户第二天就静默地睡过头了。
+    @discardableResult
+    func skipNextFire(_ alarm: AlarmModel) -> Date? {
+        guard let idx = alarms.firstIndex(where: { $0.id == alarm.id }) else { return nil }
+        // 从当前这一刻往后找真正的下一次，而不是简单取"今天/明天"
+        let next = planner.nextFire(for: alarms[idx], workday: workdayCalendar(for: alarms[idx]))
+        guard let next else { return nil }
+        alarms[idx].skippedFireDate = next.fireDate
+        persistAlarms()
+        return next.fireDate
+    }
+
+    /// 永久关闭：停用这个闹钟，直到用户手动打开
+    func disablePermanently(_ alarm: AlarmModel) {
+        guard let idx = alarms.firstIndex(where: { $0.id == alarm.id }) else { return }
+        alarms[idx].isEnabled = false
+        alarms[idx].skippedFireDate = nil
+        persistAlarms()
+    }
+
+    /// 打开闹钟。顺带清掉「仅这次」的标记——用户既然重新打开了，就是要它响。
+    func turnOn(_ alarm: AlarmModel) {
+        guard let idx = alarms.firstIndex(where: { $0.id == alarm.id }) else { return }
+        alarms[idx].isEnabled = true
+        alarms[idx].skippedFireDate = nil
+        persistAlarms()
+    }
+
+    /// 清掉已经过期的「仅这次」标记。
+    ///
+    /// 到点没清的话，`isOn` 会一直是 false，开关看着是关的但闹钟其实在响——
+    /// 这正是最容易让人误判的一种状态。
+    private func pruneExpiredSkips() {
+        let now = Date()
+        var changed = false
+        for idx in alarms.indices {
+            guard let skipped = alarms[idx].skippedFireDate else { continue }
+            if skipped <= now {
+                alarms[idx].skippedFireDate = nil
+                changed = true
+            }
+        }
+        if changed { persistAlarms() }
     }
 
     private func sortAlarms() {
